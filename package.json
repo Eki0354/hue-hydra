@@ -1,6 +1,6 @@
 {
   "name": "hue-hydra",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "A TypeScript-based npm package for generating SVG code with special filters, enabling you to completely replace a specified color in an image with another RGBA color",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
