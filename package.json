@@ -12,7 +12,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Eki0354/hue-hydra"
+    "url": "git+https://github.com/Eki0354/hue-hydra.git"
   },
   "keywords": [
     "Hue Hydra",
