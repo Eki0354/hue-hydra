@@ -215,8 +215,8 @@ export function hh(
   }
 
   const id = `fe-hh-${[
-    config.sc,
-    config.tc,
+    config.sc.replace(/^#+/, ""),
+    config.tc.replace(/^#+/, ""),
     config.rr,
     config.rg,
     config.rb,
