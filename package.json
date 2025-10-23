@@ -1,0 +1,32 @@
+{
+  "name": "hue-hydra",
+  "version": "1.0.2",
+  "description": "A TypeScript-based npm package for generating SVG code with special filters, enabling you to completely replace a specified color in an image with another RGBA color",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "publish": "npm publish --access public",
+    "lint": "eslint src --ext .ts",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Eki0354/hue-hydra"
+  },
+  "keywords": [
+    "Hue Hydra",
+    "svg",
+    "filter",
+    "Color Keying"
+  ],
+  "author": "Eki <ichinoseeki@outlook.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "eslint": "^8.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0"
+  }
+}
