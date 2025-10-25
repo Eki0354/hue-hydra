@@ -29,35 +29,29 @@ type FilterParams = {
   ra: number;
 };
 
-/** 生成所有单通道滤镜 */
-const getRGBAFilters = ({ sc, rr, rg, rb, ra }: FilterParams) => {
-  const { r: sr, g: sg, b: sb, a: sa } = calcColor(sc);
+/** 生成提取符合rgb范围要求的部分的滤镜 */
+const getRGBFilters = ({ sc, rr, rg, rb, ra }: FilterParams) => {
+  const { r: sr, g: sg, b: sb } = calcColor(sc);
 
   rr += 0.0001;
   rg += 0.0001;
   rb += 0.0001;
-  ra += 0.0001;
 
   const matrices = [
     [
-      `1 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, 1 0 0 0 -${sr - rr}`,
+      `1 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, 1 0 0 0 ${Math.min(rr - sr, 0)}`,
       `1 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, -1 0 0 0 ${sr + rr}`,
-      "1 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, 10 0 0 0 0",
+      "1 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, 10000 0 0 0 0",
     ],
     [
-      `0 0 0 0 0, 0 1 0 0 0, 0 0 0 0 0, 0 1 0 0 -${sg - rg}`,
+      `0 0 0 0 0, 0 1 0 0 0, 0 0 0 0 0, 0 1 0 0 ${Math.min(rg - sg, 0)}`,
       `0 0 0 0 0, 0 1 0 0 0, 0 0 0 0 0, 0 -1 0 0 ${sg + rg}`,
-      "0 0 0 0 0, 0 1 0 0 0, 0 0 0 0 0, 0 10 0 0 0",
+      "0 0 0 0 0, 0 1 0 0 0, 0 0 0 0 0, 0 10000 0 0 0",
     ],
     [
-      `0 0 0 0 0, 0 0 0 0 0, 0 0 1 0 0, 0 0 1 0 -${sb - rb}`,
+      `0 0 0 0 0, 0 0 0 0 0, 0 0 1 0 0, 0 0 1 0 ${Math.min(rb - sb, 0)}`,
       `0 0 0 0 0, 0 0 0 0 0, 0 0 1 0 0, 0 0 -1 0 ${sb + rb}`,
-      "0 0 0 0 0, 0 0 0 0 0, 0 0 1 0 0, 0 0 10 0 0",
-    ],
-    [
-      `0 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, 0 0 0 1 -${sa - ra}`,
-      `0 0 0 0 0, 0 0 0 0 0, 0 0 0 0 0, 0 0 0 1 ${sa + ra}`,
-      "0 0 0 0 0, 0 0 0 0 0, 0 0 1 0 0, 0 0 0 10 0",
+      "0 0 0 0 0, 0 0 0 0 0, 0 0 1 0 0, 0 0 10000 0 0",
     ],
   ];
 
@@ -88,63 +82,124 @@ const getRGBAFilters = ({ sc, rr, rg, rb, ra }: FilterParams) => {
         k2="1"
         k3="1"
         k4="0"
-        result="${index === items.length - 1 ? "t-final" : `t${index - 1}`}"
+        result="${index === matrices.length - 1 ? "t-rgb" : `t${index - 1}`}"
       />
     `;
   });
 
-  return filters.join("\n") + coms.join("\n");
+  return [
+    ...filters,
+    ...coms,
+    `
+      <feComponentTransfer in="t-rgb" result="w-rgb">
+        <feFuncR type="table" tableValues="1 1" />
+        <feFuncG type="table" tableValues="1 1" />
+        <feFuncB type="table" tableValues="1 1" />
+      </feComponentTransfer>
+    `,
+    `
+      <feComposite
+        in="w-rgb"
+        in2="SourceGraphic"
+        operator="arithmetic"
+        k1="1"
+        k2="0"
+        k3="0"
+        k4="0"
+        result="source-rgb"
+      />
+    `,
+  ].join("\n");
+};
+
+/** 生成提取符合透明度范围要求的滤镜 */
+const getAlphaFilter = ({ sc, rr, rg, rb, ra }: FilterParams) => {
+  const { a: sa } = calcColor(sc);
+
+  ra += 0.0001;
+
+  const matrices = [
+    [
+      `0 0 0 1 0, 0 0 0 0 0, 0 0 0 0 0, 0 0 0 1 ${Math.min(ra - sa, 0)}`,
+      `-1 0 0 0 ${sa + ra}, 0 0 0 0 0, 0 0 0 0 0, 0 0 0 1 0`,
+      "0 0 0 0 1, 0 0 0 0 1, 0 0 0 0 1, 100000 0 0 0 0",
+    ],
+  ];
+
+  const filters = matrices.map((items) => {
+    return items
+      .map(
+        (value, vi) => `
+      <feColorMatrix
+        in="${vi === 0 ? "source-rgb" : `cm-a-${vi - 1}`}"
+        type="matrix"
+        values="${value}"
+        result="${vi === items.length - 1 ? "t-final" : `cm-a-${vi}`}"
+      />
+    `
+      )
+      .join("\n");
+  });
+
+  return [...filters].join("\n");
 };
 
 const generateSvg = (id: string, params: FilterParams) => {
   const { r: tr, g: tg, b: tb, a: ta } = calcColor(params.tc);
 
-  const svg = document.createElement("svg");
+  const node = document.createElement("div");
+
+  const rgbFilters = getRGBFilters(params);
+  const alphaFilters = getAlphaFilter(params);
 
   const content = `
-    <defs>
-      <filter id=${id} color-interpolation-filters="sRGB">
-        ${getRGBAFilters(params)}
+    <svg>
+      <defs>
+        <filter id=${id} color-interpolation-filters="sRGB">
+          ${rgbFilters}
 
-        <feComponentTransfer in="t1" result="left">
-          <feFuncR type="table" tableValues="1 1" />
-          <feFuncG type="table" tableValues="1 1" />
-          <feFuncB type="table" tableValues="1 1" />
-          <feFuncA type="table" tableValues="1 0" />
-        </feComponentTransfer>
+          ${alphaFilters}
 
-        <feComposite
-          in="left"
-          in2="SourceGraphic"
-          operator="arithmetic"
-          k1="1"
-          k2="0"
-          k3="0"
-          k4="0"
-          result="left-source"
-        />
+          <feComponentTransfer in="t-final" result="left">
+            <feFuncR type="table" tableValues="1 1" />
+            <feFuncG type="table" tableValues="1 1" />
+            <feFuncB type="table" tableValues="1 1" />
+            <feFuncA type="table" tableValues="1 0" />
+          </feComponentTransfer>
 
-        <feComponentTransfer in="t1" result="content">
-          <feFuncR type="table" tableValues="0 0" />
-          <feFuncG type="table" tableValues="0 0" />
-          <feFuncB type="table" tableValues="0 0" />
-        </feComponentTransfer>
+          <feComposite
+            in="left"
+            in2="SourceGraphic"
+            operator="arithmetic"
+            k1="1"
+            k2="0"
+            k3="0"
+            k4="0"
+            result="left-source"
+          />
 
-        <feComponentTransfer in="content" result="trans-content">
-          <feFuncR type="discrete" tableValues="${tr} ${tr}" />
-          <feFuncG type="discrete" tableValues="${tg} ${tg}" />
-          <feFuncB type="discrete" tableValues="${tb} ${tb}" />
-          <feFuncA type="discrete" tableValues="0 ${ta}" />
-        </feComponentTransfer>
+          <feComponentTransfer in="t-final" result="content">
+            <feFuncR type="table" tableValues="0 0" />
+            <feFuncG type="table" tableValues="0 0" />
+            <feFuncB type="table" tableValues="0 0" />
+          </feComponentTransfer>
 
-        <feBlend in="left-source" in2="trans-content" mode="normal" result="final" />
-      </filter>
-    </defs>
+          <feComponentTransfer in="content" result="trans-content">
+            <feFuncR type="discrete" tableValues="${tr} ${tr}" />
+            <feFuncG type="discrete" tableValues="${tg} ${tg}" />
+            <feFuncB type="discrete" tableValues="${tb} ${tb}" />
+            <feFuncA type="discrete" tableValues="0 ${ta}" />
+          </feComponentTransfer>
+
+          <feBlend in="left-source" in2="trans-content" mode="normal" result="final" />
+        </filter>
+      </defs>
+    </svg>
   `;
 
-  svg.innerHTML = content;
+  node.innerHTML = content;
 
-  return svg;
+  return node;
 };
 
 /**
@@ -221,7 +276,7 @@ export function hh(
     config.rg,
     config.rb,
     config.ra,
-  ].join("-")}`;
+  ].join("-")}`.replace(/\./g, "-");
   const className = `hh-filter-${id}`;
 
   // 1. Ensure a hidden container exists
@@ -239,7 +294,7 @@ export function hh(
   }
 
   // 2. Check for existing filter id to avoid duplicates
-  if (!container.querySelector(`#${id}`)) {
+  if (!container.querySelector(`[id="${id}"]`)) {
     const svg = generateSvg(id, config);
     container.appendChild(svg);
   }
